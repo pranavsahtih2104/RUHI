@@ -117,6 +117,7 @@ class GeminiService(BaseLLMService):
                 )
                 if response and response.text:
                     return response.text.strip()
+                return "I received your message, but the response stream was empty. How else may I assist you?"
             except Exception as fallback_error:
                 logger.error(f"Fallback model failed: {fallback_error}")
                 raise RuntimeError(f"RUHI AI Service error: {str(e)}")

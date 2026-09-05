@@ -1,6 +1,6 @@
 import time
 import uuid
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 from backend.models.schemas import ChatMessage
 from backend.config.settings import settings
@@ -11,7 +11,7 @@ class SessionContext:
         self.messages: List[ChatMessage] = []
         self.created_at: float = time.time()
         self.last_accessed: float = time.time()
-        self.metadata: Dict[str, any] = {}
+        self.metadata: Dict[str, Any] = {}
 
     def add_message(self, role: str, content: str):
         self.messages.append(ChatMessage(role=role, content=content))
