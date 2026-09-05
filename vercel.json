@@ -1,0 +1,7 @@
+{
+  "buildCommand": "npm run build --prefix Ruhi-web/frontend",
+  "outputDirectory": "Ruhi-web/frontend/dist",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
