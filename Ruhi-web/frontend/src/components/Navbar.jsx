@@ -1,15 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Download, Menu, X, ArrowUpRight } from 'lucide-react';
+import { Sparkles, Download, Menu, X, ArrowUpRight, Cpu } from 'lucide-react';
+import { checkBackendHealth } from '../services/api';
 
 export default function Navbar({ onOpenInstallModal, onNavigateToChat }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 30);
     };
     window.addEventListener('scroll', handleScroll);
+
+    // Backend health check for status dot
+    checkBackendHealth()
+      .then(res => setIsOnline(res.status === 'healthy'))
+      .catch(() => setIsOnline(false));
+
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -25,12 +33,21 @@ export default function Navbar({ onOpenInstallModal, onNavigateToChat }) {
   return (
     <nav className={`ruhi-navbar ${scrolled ? 'scrolled' : ''}`}>
       <div className="ruhi-container nav-container">
-        {/* Brand Logo & Tag */}
-        <a href="#" className="brand-link">
-          <img src="/ruhi-icon.svg" alt="RUHI Emblem" className="brand-icon" />
-          <span className="brand-text">RUHI</span>
-          <span className="brand-tag">v0.1.0</span>
-        </a>
+        {/* Brand Logo & Status Tag */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <a href="#" className="brand-link">
+            <img src="/ruhi-icon.svg" alt="RUHI Emblem" className="brand-icon" />
+            <span className="brand-text">RUHI</span>
+            <span className="brand-tag">v1.0</span>
+          </a>
+
+          <div className="navbar-status-pill" title={isOnline ? 'RUHI Core is Online' : 'RUHI Core is Offline'}>
+            <span className={`console-status-dot ${isOnline ? 'online' : 'offline'}`} />
+            <span style={{ fontSize: '0.72rem', color: isOnline ? '#34d399' : 'var(--text-tertiary)', fontWeight: 600 }}>
+              {isOnline ? 'Online' : 'Offline'}
+            </span>
+          </div>
+        </div>
 
         {/* Desktop Navigation Links */}
         <ul className="nav-links">
@@ -57,10 +74,10 @@ export default function Navbar({ onOpenInstallModal, onNavigateToChat }) {
           <button 
             onClick={onOpenInstallModal}
             className="btn-nav-install"
-            aria-label="Install Desktop RUHI"
+            aria-label="RUHI Desktop Preview"
           >
             <Download size={14} />
-            <span>Install RUHI</span>
+            <span>Desktop Preview</span>
           </button>
 
           <button 
@@ -117,7 +134,7 @@ export default function Navbar({ onOpenInstallModal, onNavigateToChat }) {
               className="btn-secondary" 
               style={{ flex: 1, padding: '10px 16px', fontSize: '0.85rem' }}
             >
-              Install
+              Desktop Preview
             </button>
           </div>
         </div>

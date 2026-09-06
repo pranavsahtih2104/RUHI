@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Monitor, Folder, Terminal, Mic, ShieldCheck, CheckCircle2, Lock, 
-  ArrowRight, Download, Play, Cpu, AlertTriangle, FileText 
+  ArrowRight, Download, Play, Cpu, AlertTriangle, FileText, Clock 
 } from 'lucide-react';
 
 export default function DesktopRuhi({ onOpenInstallModal }) {
@@ -23,7 +23,7 @@ export default function DesktopRuhi({ onOpenInstallModal }) {
         '3. Verifies authorization for Application Launch tool.',
         '4. Launches VS Code with ~/Documents/RUHI workspace focused.',
       ],
-      terminalOutput: '$ ruhi-agent exec app.launch --app "Visual Studio Code" --path "~/Documents/RUHI"\n> Process spawned [PID: 48192]\n> RUHI Context loaded: 14 files indexed',
+      terminalOutput: '$ ruhi-desktop-daemon exec app.launch --app "Visual Studio Code" --path "~/Documents/RUHI"\n> Process spawned with user authorization [PID: 48192]\n> RUHI Context loaded: Workspace indexed locally',
     },
     {
       title: 'Authorized Local File Search',
@@ -34,7 +34,7 @@ export default function DesktopRuhi({ onOpenInstallModal }) {
         '3. Indexes metadata and locates "Neural_Orchestrator_2026.pdf".',
         '4. Displays interactive preview with one-click open.',
       ],
-      terminalOutput: '$ ruhi-agent file.search --dir "~/Downloads" --query "neural orchestration"\n> Found 1 match: ~/Downloads/Neural_Orchestrator_2026.pdf (1.4 MB)\n> Safety check: Verified SHA-256 integrity.',
+      terminalOutput: '$ ruhi-desktop-daemon file.search --dir "~/Downloads" --query "neural orchestration"\n> Found 1 match: ~/Downloads/Neural_Orchestrator_2026.pdf (1.4 MB)\n> Safety check: Verified local sandbox integrity.',
     },
     {
       title: 'Multi-Step Build & Test Automation',
@@ -45,7 +45,7 @@ export default function DesktopRuhi({ onOpenInstallModal }) {
         '3. Monitors stderr/stdout in background without freezing UI.',
         '4. Delivers concise summary notification upon completion.',
       ],
-      terminalOutput: '$ ruhi-agent task.run --cmd "pytest tests/ --verbose"\n> Running 18 tests...\n> 18 passed in 1.42s [100%]\n> Notification delivered.',
+      terminalOutput: '$ ruhi-desktop-daemon task.run --cmd "pytest tests/ --verbose"\n> Running test suite in authorized sandbox...\n> 6 passed [100%]\n> Local desktop notification delivered.',
     },
   ];
 
@@ -61,24 +61,30 @@ export default function DesktopRuhi({ onOpenInstallModal }) {
         <div className="section-header">
           <div className="section-badge">
             <Monitor size={13} />
-            <span>DESKTOP ECOSYSTEM</span>
+            <span>DESKTOP ECOSYSTEM // COMING SOON</span>
           </div>
           <h2 className="section-title">
-            RUHI Becomes More Powerful <br />
-            <span className="text-gradient-cyan">When Installed.</span>
+            Coming to RUHI Desktop: <br />
+            <span className="text-gradient-cyan">Deep Computer Interaction.</span>
           </h2>
           <p className="section-description">
-            The web version is only the beginning. Installed RUHI operates as an intelligent local companion with access to your files, desktop applications, and automated workflows — always under your explicit authorization.
+            RUHI Web is the first interface to the system. The upcoming native RUHI Desktop application will integrate RUHI Core directly with your operating system, files, and applications — governed by a transparent Permission Engine.
           </p>
         </div>
 
-        {/* Interactive Desktop Simulation Card */}
+        {/* Desktop Architecture Preview Card */}
         <div className="desktop-hero-card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
             <div>
-              <span className="brand-tag">DESKTOP SIMULATION</span>
-              <h3 style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: '6px' }}>
-                Simulated Local Execution
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="brand-tag">ARCHITECTURE PREVIEW</span>
+                <span className="status-pill status-coming-soon">
+                  <Clock size={10} />
+                  <span>In Active Development</span>
+                </span>
+              </div>
+              <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginTop: '8px' }}>
+                Planned Desktop Capabilities
               </h3>
             </div>
             <button 
@@ -87,7 +93,7 @@ export default function DesktopRuhi({ onOpenInstallModal }) {
               style={{ padding: '10px 22px', fontSize: '0.85rem' }}
             >
               <Download size={15} />
-              <span>Install RUHI Desktop</span>
+              <span>Desktop Roadmap & Architecture</span>
             </button>
           </div>
 
@@ -114,14 +120,14 @@ export default function DesktopRuhi({ onOpenInstallModal }) {
             {/* Right: Terminal Telemetry & Pipeline */}
             <div className="desktop-terminal-preview">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px' }}>
-                <span style={{ color: 'var(--text-tertiary)' }}>ruhi-desktop-daemon // authorized</span>
-                <span style={{ color: '#34d399', fontSize: '0.75rem' }}>SANDBOXED</span>
+                <span style={{ color: 'var(--text-tertiary)' }}>ruhi-desktop-daemon // planned specification</span>
+                <span style={{ color: '#34d399', fontSize: '0.75rem' }}>PERMISSION-GATED</span>
               </div>
               <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, color: '#38bdf8' }}>
                 {currentWorkflow.terminalOutput}
               </div>
               <div style={{ marginTop: '12px', borderTop: '1px solid var(--border-subtle)', paddingTop: '10px' }}>
-                <strong style={{ color: 'var(--text-pure)', fontSize: '0.8rem' }}>EXECUTION SEQUENCE:</strong>
+                <strong style={{ color: 'var(--text-pure)', fontSize: '0.8rem' }}>DESKTOP EXECUTION SEQUENCE:</strong>
                 <ul style={{ listStyle: 'none', marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                   {currentWorkflow.steps.map((s, i) => (
                     <li key={i}>{s}</li>
@@ -136,10 +142,10 @@ export default function DesktopRuhi({ onOpenInstallModal }) {
         <div className="perm-engine-card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
             <ShieldCheck size={22} color="#34d399" />
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>RUHI Permission Engine</h3>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>RUHI Permission Engine Specification</h3>
           </div>
           <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-            RUHI never operates with unrestricted system control. Every capability requires explicit, transparent, and revocable user consent.
+            RUHI Desktop will never operate with unrestricted silent system control. Sensitive operations (deleting files, running scripts, sending external requests) will always require explicit user confirmation.
           </p>
 
           <div className="perm-toggles-grid">
@@ -148,17 +154,17 @@ export default function DesktopRuhi({ onOpenInstallModal }) {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <Folder size={16} color="var(--cyan-primary)" />
-                  <strong style={{ fontSize: '0.9rem' }}>Local Files</strong>
+                  <strong style={{ fontSize: '0.9rem' }}>Local Files & Workspaces</strong>
                 </div>
                 <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                  Search and read user-authorized workspaces.
+                  Index and search user-authorized project folders without cloud upload.
                 </p>
               </div>
               <button 
                 onClick={() => togglePermission('files')}
                 className={`perm-toggle-btn ${permissions.files ? 'allowed' : 'blocked'}`}
               >
-                {permissions.files ? 'Allowed' : 'Don\'t Allow'}
+                {permissions.files ? 'Authorized' : 'Restricted'}
               </button>
             </div>
 
@@ -167,17 +173,17 @@ export default function DesktopRuhi({ onOpenInstallModal }) {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <Terminal size={16} color="var(--cyan-primary)" />
-                  <strong style={{ fontSize: '0.9rem' }}>Applications</strong>
+                  <strong style={{ fontSize: '0.9rem' }}>App Orchestration</strong>
                 </div>
                 <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                  Launch authorized developer and system apps.
+                  Launch authorized developer tools, editors, and terminal sessions.
                 </p>
               </div>
               <button 
                 onClick={() => togglePermission('apps')}
                 className={`perm-toggle-btn ${permissions.apps ? 'allowed' : 'blocked'}`}
               >
-                {permissions.apps ? 'Allowed' : 'Don\'t Allow'}
+                {permissions.apps ? 'Authorized' : 'Restricted'}
               </button>
             </div>
 
@@ -186,17 +192,17 @@ export default function DesktopRuhi({ onOpenInstallModal }) {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <Mic size={16} color="var(--cyan-primary)" />
-                  <strong style={{ fontSize: '0.9rem' }}>Microphone</strong>
+                  <strong style={{ fontSize: '0.9rem' }}>System Voice Input</strong>
                 </div>
                 <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                  Hands-free natural speech interaction.
+                  Hands-free system-wide speech capture and audio feedback.
                 </p>
               </div>
               <button 
                 onClick={() => togglePermission('mic')}
                 className={`perm-toggle-btn ${permissions.mic ? 'allowed' : 'blocked'}`}
               >
-                {permissions.mic ? 'Allowed' : 'Don\'t Allow'}
+                {permissions.mic ? 'Authorized' : 'Restricted'}
               </button>
             </div>
 
@@ -205,17 +211,17 @@ export default function DesktopRuhi({ onOpenInstallModal }) {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <Cpu size={16} color="var(--cyan-primary)" />
-                  <strong style={{ fontSize: '0.9rem' }}>Automation</strong>
+                  <strong style={{ fontSize: '0.9rem' }}>Background Task Daemon</strong>
                 </div>
                 <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                  Run build scripts, tests, and task pipelines.
+                  Execute authorized test runners, build pipelines, and watchers.
                 </p>
               </div>
               <button 
                 onClick={() => togglePermission('automation')}
                 className={`perm-toggle-btn ${permissions.automation ? 'allowed' : 'blocked'}`}
               >
-                {permissions.automation ? 'Allowed' : 'Don\'t Allow'}
+                {permissions.automation ? 'Authorized' : 'Restricted'}
               </button>
             </div>
           </div>

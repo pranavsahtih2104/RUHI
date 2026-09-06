@@ -1,164 +1,199 @@
-# RUHI — Personal AI System
+# RUHI — Stage 2: Persistent Memory & PostgreSQL
 
 > **An AI that grows with you.**  
-> A futuristic personal AI system that understands intent, remembers context, reasons through complex tasks, and coordinates actions across your digital life.
+> A personal AI system that understands intent, maintains context, reasons through complex challenges, and retains persistent memories across sessions.
 
 ---
 
-## 🌌 Overview
+## 🌌 1. What is RUHI?
 
-**RUHI** is not another generic ChatGPT clone. Traditional AI functions as an isolated single-turn chatbot: you open a tab, ask a question, copy text, and do all the actual work manually.
+**RUHI** is a personal AI system — not simply a chatbot or a wrapper around a single foundation model.
 
-RUHI is architected as an **intelligent layer** between you and your digital environment:
+Traditional chatbots function as isolated, single-turn query boxes where context is lost as soon as the session ends.
+
+RUHI is designed as an **intelligent cognitive layer** between you and your digital environment:
 
 ```text
-Traditional AI:
-User ──► Question ──► AI ──► Static Text Answer
-
-RUHI Personal AI:
-User ──► Intent ──► RUHI Understands ──► Context/Memory ──► Reasoning ──► Tools ──► Guarded Actions ──► Result
+                         RUHI
+                          │
+                     RUHI CORE
+                          │
+             ┌────────────┴────────────┐
+             │                         │
+        Conversation              Memory System
+          Context                      │
+                                      │
+                         ┌────────────┴────────────┐
+                         │                         │
+                  Short-Term Memory        Long-Term Memory
+                         │                         │
+                    Current chat          Persistent storage
+                    (PostgreSQL)             (PostgreSQL)
 ```
 
 ---
 
-## 🏛️ Project Architecture
-
-The web codebase is structured with clear separation between the presentation tier, backend API gateway, and decoupled AI orchestrators:
+## 🏛️ 2. Architecture (Stage 2: Persistent Memory)
 
 ```text
-Ruhi-web/
-├── backend/                        # FastAPI AI Backend Service
-│   ├── config/
-│   │   └── settings.py             # Environment variables & model configuration
-│   ├── models/
-│   │   └── schemas.py              # Pydantic data schemas (Chat, Health, Memory)
-│   ├── services/
-│   │   ├── llm/
-│   │   │   ├── base.py             # Abstract BaseLLMService interface (provider decoupling)
-│   │   │   └── gemini_service.py   # Gemini 2.5 Flash implementation & system persona
-│   │   ├── memory/
-│   │   │   └── session_memory.py   # Active sliding-window session manager
-│   │   └── tools/
-│   │       └── registry.py         # Extensible tool registry for desktop execution
-│   ├── main.py                     # FastAPI application endpoints
-│   ├── requirements.txt
-│   └── .env.example
-│
-├── frontend/                       # Vite + React Modern Web Application
-│   ├── src/
-│   │   ├── assets/                 # Brand emblems, vector icons
-│   │   ├── components/
-│   │   │   ├── Navbar.jsx          # Glassmorphic floating navigation
-│   │   │   ├── Hero.jsx            # Cinematic hero with dynamic canvas orb
-│   │   │   ├── RuhiCoreOrb.jsx     # Interactive multi-layered canvas particle core
-│   │   │   ├── WhatIsRuhi.jsx      # Interactive 3-branch system architecture
-│   │   │   ├── WhyRuhi.jsx         # Paradigm comparison (Tool vs Personal System)
-│   │   │   ├── Capabilities.jsx    # Categorized capabilities with status badges
-│   │   │   ├── HowItWorks.jsx      # Interactive 9-stage cognitive pipeline
-│   │   │   ├── Personality.jsx     # Ethos & demeanor principles
-│   │   │   ├── TryRuhiChat.jsx     # Signature chat console with Gemini integration
-│   │   │   ├── MemoryConcept.jsx   # Short-term context vs Long-term memory visualizer
-│   │   │   ├── DesktopRuhi.jsx     # Installed desktop workflow simulation & permissions
-│   │   │   ├── ComparisonMatrix.jsx# Web vs Desktop capability breakdown
-│   │   │   ├── PrivacySecurity.jsx # Zero-compromise security posture & controls
-│   │   │   ├── InstallModal.jsx    # Desktop installer modal & permission setup
-│   │   │   └── Footer.jsx          # Brand identity, links, and copyright
-│   │   ├── services/
-│   │   │   └── api.js              # REST client for backend communication
-│   │   ├── styles/
-│   │   │   ├── index.css           # Design tokens, typography, dark space palette
-│   │   │   ├── components.css      # Component cards, glassmorphism, animations
-│   │   │   └── chat.css            # RUHI console aesthetics & markdown styling
-│   │   ├── App.jsx                 # Master application layout
-│   │   └── main.jsx
-│   ├── index.html                  # SEO tags & Google Fonts (Outfit, Space Grotesk, Inter)
-│   ├── package.json
-│   └── vite.config.js
-│
-├── docs/
-│   └── ARCHITECTURE.md             # Deep architectural design document
-└── README.md
+                         RUHI WEB (React / Vite)
+                                    │
+            ┌───────────────────────┴───────────────────────┐
+            ▼                                               ▼
+   Chat History Sidebar                            Memory Management UI
+ (Persistent Conversations)                       (Search, Edit, Delete)
+            │                                               │
+            └───────────────────────┬───────────────────────┘
+                                    ▼
+                          FastAPI REST / SSE API
+                                    │
+                                RUHI CORE
+                                    │
+      ┌─────────────────────────────┼─────────────────────────────┐
+      ▼                             ▼                             ▼
+Context Manager               Memory Service                LLM Service
+(Sliding window + memory) (Explicit / Conservative extract) (BaseLLMProvider)
+      │                             │                             │
+      │                     Memory Repository                     │
+      │                             │                             │
+      └─────────────────────────────┼─────────────────────────────┘
+                                    ▼
+                         PostgreSQL (`ruhi-web`)
+                             ┌──────┴──────┐
+                             │             │
+                       conversations    memories
+                             │        (pgvector ready)
+                          messages
 ```
 
 ---
 
-## ⚡ Key Features
+## 🗄️ 3. PostgreSQL Database Schema
 
-1. **Cinematic Futuristic Aesthetics**:
-   - Deep space palette (`#05070c`, `#080b12`, `#00f2fe`, `#7928ca`)
-   - Custom dynamic HTML5 Canvas particle & energy core (`RuhiCoreOrb`)
-   - Frosted glassmorphism with subtle ambient glows
-   - High-contrast accessible typography (Outfit, Space Grotesk, Inter, Fira Code)
+RUHI connects to your existing local PostgreSQL database (`ruhi-web`) on `localhost:5432`:
 
-2. **Live AI Chat Experience**:
-   - Direct connection to Google Gemini 2.5 Flash via FastAPI backend
-   - Multi-turn conversation context retention within active session
-   - Clean markdown parsing, lists, and code blocks with one-click copy
-   - Calm, non-fabricated thinking indicator wave
-   - Context reset action and suggestion chips for first-time discovery
+```text
+PostgreSQL (ruhi-web)
+├── users (id, email, name, created_at, updated_at)
+├── conversations (id, user_id, title, created_at, updated_at)
+├── messages (id, conversation_id, role, content, metadata_json, created_at)
+└── memories (id, user_id, content, memory_type, importance, source, is_active, metadata_json, created_at, updated_at)
+```
 
-3. **Transparent Capability Matrix**:
-   - Clear badges for **Available now**, **Coming soon**, and **Desktop-only**
-   - No fabricated capabilities or misleading claims
-
-4. **Desktop Simulation & Permission Engine**:
-   - Interactive local workflow demonstrations (Project launch, file search, build pipelines)
-   - Granular permission control toggles (Files, Apps, Mic, Automation)
-
-5. **Decoupled AI Engine**:
-   - Abstract `BaseLLMService` ensures RUHI can seamlessly switch between Gemini, Claude, GPT-4o, or local Ollama weights without rewriting core system logic.
+### Memory Types:
+- `preference`: Enduring user preferences (e.g., *"I prefer dark mode and concise code"*)
+- `project`: Project architectural knowledge (e.g., *"RUHI is my personal AI project"*)
+- `goal`: Strategic objectives (e.g., *"My goal is to build an autonomous agent"*)
+- `fact`: Static facts (e.g., *"My name is Pranav"*)
+- `instruction`: Ongoing behavioral rules (e.g., *"Always format SQL in uppercase"*)
+- `general`: Uncategorized persistent facts
 
 ---
 
-## 🚀 Quick Start Guide
+## 🧠 4. How RUHI Memory Works
 
-### Prerequisites
-- Node.js (v18+)
-- Python (v3.10+)
-- Google Gemini API Key
+1. **Explicit Memory Commands**:
+   - `"Remember that RUHI is my personal AI project."` -> RUHI stores the memory with high importance (8-10) and confirms: *"I'll remember that: RUHI is my personal AI project."*
+   - `"Forget that I want desktop control."` -> RUHI soft-deletes/deactivates the matching memory.
+   - `"What do you remember about me?"` -> RUHI queries and lists active persistent memories.
 
-### 1. Configure Environment Variables
-Create a `.env` file in `Ruhi-web/backend/` or project root:
-```bash
+2. **Conservative Automatic Extraction**:
+   - RUHI analyzes incoming conversational turns for strong enduring intent without saving ephemeral chatter (e.g., *"I drank coffee today"* is ignored).
+
+3. **Selective Context Retrieval (No Dumping)**:
+   - RUHI extracts query keywords and retrieves only the top 3-4 most relevant active memories.
+   - Memories are formatted into system context (`[Active Persistent Context & Memories]`) for the LLM.
+
+4. **Persistent Conversation Sessions**:
+   - Every conversation and message is committed to PostgreSQL.
+   - Conversations persist across backend restarts and browser refreshes.
+
+---
+
+## ⚙️ 5. Setup & Environment Configuration
+
+### Prerequisites:
+- PostgreSQL running locally on port `5432` with database `ruhi-web`
+- Python 3.10+
+- Node.js 18+
+
+### Environment Variables (`.env`):
+Create or update `.env` in the project root:
+
+```env
+# 1. PostgreSQL Connection
+DATABASE_URL=postgresql://USERNAME:PASSWORD@localhost:5432/ruhi-web
+DEFAULT_USER_ID=default_user
+
+# 2. Intelligence Provider
+RUHI_LLM_PROVIDER=gemini
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-2.5-flash
+GEMINI_FALLBACK_MODEL=gemini-2.0-flash
+
+# 3. Memory & Context
 MAX_SESSION_HISTORY=30
+SESSION_EXPIRY_MINUTES=120
+
+# 4. Frontend API
+VITE_API_URL=http://127.0.0.1:8000/api
 ```
 
-### 2. Start the Backend API Server
+---
+
+## 🚀 6. Running Migrations & Starting RUHI
+
+### 1. Run Alembic Database Migrations:
 ```bash
-# From workspace root
-source .venv/bin/activate
-cd Ruhi-web
+# From project root:
+alembic -c backend/alembic.ini upgrade head
+```
+
+### 2. Start the FastAPI Backend:
+```bash
 uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
-Backend API will be live at: `http://127.0.0.1:8000` (Docs at `/docs`)
 
-### 3. Start the Frontend Development Server
-In a separate terminal:
+### 3. Start the Frontend:
 ```bash
-cd Ruhi-web/frontend
+cd frontend
 npm run dev
 ```
-Frontend will be live at: `http://localhost:5173`
+Open **http://localhost:5173** in your browser.
 
 ---
 
-## 🔒 Security & Privacy Posture
+## 🧪 7. Running Tests
 
-- **Zero Secret Leakage**: API keys and tokens reside exclusively on the server side.
-- **Explicit Authorization**: Desktop capabilities operate under a sandbox model with required user permissions.
-- **Session Purging**: Users can reset session context at any time.
+Run the full automated test suite (22 unit & integration tests):
+
+```bash
+python3 -m unittest discover -s backend/tests
+```
 
 ---
 
-## 🗺️ Roadmap & Next Steps
+## 🗺️ 8. Stage Progression & Roadmap
 
-- [x] Stage 1: Landing page + cinematic branding
-- [x] Stage 2: Interactive RUHI architecture & 9-stage pipeline
-- [x] Stage 3: Live web chat console with session memory
-- [x] Stage 4: Backend AI integration with Gemini 2.5 Flash & provider abstraction
-- [x] Stage 5: Desktop simulation & permission engine
-- [ ] Stage 6: Electron / Tauri desktop runtime wrapper
-- [ ] Stage 7: Local SQLite / Chroma vector memory store
-- [ ] Stage 8: Local voice activation daemon
+```text
+CURRENT
+RUHI Web v1
+     ↓
+THIS STAGE (COMPLETED)
+Persistent Memory & PostgreSQL
+     ↓
+NEXT
+Knowledge / RAG
+     ↓
+THEN
+Real Desktop Tools
+     ↓
+THEN
+Reasoning & Autonomous Planning
+     ↓
+THEN
+RUHI Desktop & OS Automation
+     ↓
+THEN
+Local Models & Custom RUHI Weights
+```

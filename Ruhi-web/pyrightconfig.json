@@ -1,0 +1,18 @@
+{
+  "include": [
+    "backend"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    ".git"
+  ],
+  "pythonVersion": "3.14",
+  "pythonPlatform": "Darwin",
+  "extraPaths": [
+    "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages",
+    "."
+  ],
+  "reportMissingImports": false,
+  "reportMissingTypeStubs": false
+}

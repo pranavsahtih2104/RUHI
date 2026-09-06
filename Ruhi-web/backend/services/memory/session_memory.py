@@ -1,9 +1,13 @@
 import time
 import uuid
+import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime
 from backend.models.schemas import ChatMessage
 from backend.config.settings import settings
+from backend.services.memory.base import BaseMemoryStore
+
+logger = logging.getLogger("ruhi.memory.session")
+
 
 class SessionContext:
     def __init__(self, session_id: str):
@@ -13,10 +17,10 @@ class SessionContext:
         self.last_accessed: float = time.time()
         self.metadata: Dict[str, Any] = {}
 
-    def add_message(self, role: str, content: str):
-        self.messages.append(ChatMessage(role=role, content=content))
+    def add_message(self, role: str, content: str, metadata: Optional[Dict[str, Any]] = None):
+        self.messages.append(ChatMessage(role=role, content=content, metadata=metadata))
         self.last_accessed = time.time()
-        # Keep within max sliding window history
+        # Keep within max sliding window
         if len(self.messages) > settings.MAX_SESSION_HISTORY:
             self.messages = self.messages[-settings.MAX_SESSION_HISTORY:]
 
@@ -25,14 +29,9 @@ class SessionContext:
         self.last_accessed = time.time()
 
 
-class SessionMemoryManager:
+class SessionMemoryStore(BaseMemoryStore):
     """
-    Manages active session context for RUHI web conversations.
-    
-    Future Extension Point:
-    - Long-term memory extraction (e.g. user facts, preferences, project states)
-    - Persistent database storage (SQLite / Postgres)
-    - Semantic vector retrieval (Embeddings + Vector DB)
+    In-memory implementation of BaseMemoryStore with automated TTL cleanup.
     """
 
     def __init__(self):
@@ -52,13 +51,21 @@ class SessionMemoryManager:
 
     def get_history(self, session_id: str) -> List[ChatMessage]:
         if session_id in self._sessions:
-            return self._sessions[session_id].messages
+            session = self._sessions[session_id]
+            session.last_accessed = time.time()
+            return list(session.messages)
         return []
 
-    def add_turn(self, session_id: str, user_text: str, assistant_text: str):
+    def add_turn(
+        self,
+        session_id: str,
+        user_text: str,
+        assistant_text: str,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
         session = self.get_or_create_session(session_id)
-        session.add_message("user", user_text)
-        session.add_message("assistant", assistant_text)
+        session.add_message("user", user_text, metadata=metadata)
+        session.add_message("assistant", assistant_text, metadata=metadata)
 
     def clear_session(self, session_id: str) -> bool:
         if session_id in self._sessions:
@@ -67,6 +74,7 @@ class SessionMemoryManager:
         return False
 
     def active_session_count(self) -> int:
+        self._cleanup_expired_sessions()
         return len(self._sessions)
 
     def _cleanup_expired_sessions(self):
@@ -80,5 +88,5 @@ class SessionMemoryManager:
             del self._sessions[sid]
 
 
-# Global memory singleton
-memory_manager = SessionMemoryManager()
+# Global default session memory instance
+session_memory = SessionMemoryStore()

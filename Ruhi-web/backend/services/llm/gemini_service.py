@@ -1,35 +1,22 @@
+import asyncio
 import logging
-from typing import List, Optional, Any
+from typing import List, Optional, AsyncIterator, Any, cast
 from google import genai
 from google.genai import types
+
 from backend.config.settings import settings
 from backend.models.schemas import ChatMessage
-from backend.services.llm.base import BaseLLMService
+from backend.services.llm.base import BaseLLMProvider
 
-logger = logging.getLogger("ruhi.gemini")
-
-RUHI_SYSTEM_INSTRUCTION = """
-You are RUHI — a futuristic personal AI system.
-
-RUHI is designed to become an intelligent personal layer between the user and their digital life:
-understanding user intent, remembering context, reasoning through complex tasks, and coordinating actions.
-
-Your Core Identity & Persona:
-- Tone: Calm, intelligent, thoughtful, precise, respectful, and articulate.
-- Style: Direct and concise when appropriate, deeply analytical when exploring complex ideas.
-- Demeanor: You are an advanced AI personal computing system, not a fictional human or a playful toy robot. Avoid cheesy AI tropes, excessive emojis, or artificial enthusiasm.
-- Capability Awareness:
-  * In this Web interface: You excel at high-level reasoning, conceptual breakdowns, problem-solving, structured planning, coding, and natural multi-turn conversation.
-  * You maintain conversation context during the current active session.
-  * If the user asks about deep system tasks (such as opening local apps, executing terminal commands, browsing their private local hard drive files, or desktop automation), explain that those require the installed Desktop RUHI environment with explicit user permissions, while offering to plan, code, or draft the workflow right here in the web interface.
-
-Formatting Guidelines:
-- Use clean Markdown with clear headings, bullet points, and code blocks with syntax highlighting when relevant.
-- Keep explanations structured and easy to read.
-""".strip()
+logger = logging.getLogger("ruhi.llm.gemini")
 
 
-class GeminiService(BaseLLMService):
+class GeminiProvider(BaseLLMProvider):
+    """
+    Google Gemini implementation of BaseLLMProvider.
+    Decoupled from RUHI Core logic.
+    """
+
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key or settings.GEMINI_API_KEY
         self.model = model or settings.DEFAULT_MODEL
@@ -38,42 +25,35 @@ class GeminiService(BaseLLMService):
         self._init_client()
 
     def _init_client(self):
-        if self.api_key:
+        key = self.api_key.strip() if self.api_key else ""
+        if key:
             try:
-                self._client = genai.Client(api_key=self.api_key)
-                logger.info(f"Gemini client initialized successfully with model: {self.model}")
+                self._client = genai.Client(api_key=key)
+                logger.info(f"GeminiProvider initialized with model: {self.model}")
             except Exception as e:
                 logger.error(f"Failed to initialize Gemini client: {e}")
                 self._client = None
         else:
-            logger.warning("No GEMINI_API_KEY provided. RUHI will run in simulated demo mode.")
+            logger.warning("No GEMINI_API_KEY detected. AI operations will require configuration.")
             self._client = None
+
+    def is_configured(self) -> bool:
+        return self._client is not None or bool(settings.GEMINI_API_KEY.strip())
 
     def get_provider_name(self) -> str:
         return "Google Gemini"
 
-    def get_model_name(self) -> str:
-        return self.model
-
-    async def generate_response(
-        self,
-        history: List[ChatMessage],
-        new_message: str,
-        system_instruction: Optional[str] = None,
-        **kwargs
-    ) -> str:
-        sys_prompt = system_instruction or RUHI_SYSTEM_INSTRUCTION
-        
-        if not self._client:
-            # Re-attempt initialization in case key was loaded late
-            self.api_key = settings.GEMINI_API_KEY
+    def _ensure_client(self):
+        if not self._client and settings.GEMINI_API_KEY.strip():
+            self.api_key = settings.GEMINI_API_KEY.strip()
             self._init_client()
 
         if not self._client:
-            # Fallback simulated intelligent response if no API key is configured
-            return self._generate_simulated_response(new_message, history)
+            raise RuntimeError(
+                "Gemini API key is not configured. Please set GEMINI_API_KEY in your environment or .env file."
+            )
 
-        # Build contents from history
+    def _build_contents(self, history: List[ChatMessage], new_message: str) -> list[types.Content]:
         contents = []
         for msg in history:
             role = "user" if msg.role == "user" else "model"
@@ -83,82 +63,111 @@ class GeminiService(BaseLLMService):
                     parts=[types.Part.from_text(text=msg.content)]
                 )
             )
-        
-        # Append current user prompt
         contents.append(
             types.Content(
                 role="user",
                 parts=[types.Part.from_text(text=new_message)]
             )
         )
+        return contents
+
+    async def generate_response(
+        self,
+        history: List[ChatMessage],
+        new_message: str,
+        system_instruction: Optional[str] = None,
+        **kwargs: Any
+    ) -> str:
+        self._ensure_client()
+        contents = self._build_contents(history, new_message)
 
         config = types.GenerateContentConfig(
-            system_instruction=sys_prompt,
-            temperature=0.7,
-            top_p=0.95,
+            system_instruction=system_instruction,
+            temperature=kwargs.get("temperature", 0.7),
+            top_p=kwargs.get("top_p", 0.95),
         )
 
-        try:
+        def _call_model(model_name: str) -> str:
+            assert self._client is not None
             response = self._client.models.generate_content(
-                model=self.model,
-                contents=contents,
+                model=model_name,
+                contents=cast(Any, contents),
                 config=config
             )
             if response and response.text:
                 return response.text.strip()
-            return "I received your message, but the response stream was empty. How else may I assist you?"
+            return ""
+
+        try:
+            result = await asyncio.to_thread(_call_model, self.model)
+            if result:
+                return result
+            return "I received your message, but the generated response was empty."
         except Exception as e:
-            logger.warning(f"Error calling Gemini model {self.model}: {e}. Trying fallback model {self.fallback_model}...")
+            logger.warning(f"Error with primary model {self.model}: {e}. Retrying with fallback {self.fallback_model}...")
             try:
-                response = self._client.models.generate_content(
-                    model=self.fallback_model,
-                    contents=contents,
-                    config=config
-                )
-                if response and response.text:
-                    return response.text.strip()
-                return "I received your message, but the response stream was empty. How else may I assist you?"
-            except Exception as fallback_error:
-                logger.error(f"Fallback model failed: {fallback_error}")
-                raise RuntimeError(f"RUHI AI Service error: {str(e)}")
+                result = await asyncio.to_thread(_call_model, self.fallback_model)
+                if result:
+                    return result
+                return "I received your message, but the generated response was empty."
+            except Exception as fallback_err:
+                logger.error(f"Fallback model failed: {fallback_err}")
+                raise RuntimeError(f"LLM Provider error: {str(e)}")
 
-    def _generate_simulated_response(self, prompt: str, history: List[ChatMessage]) -> str:
-        p_lower = prompt.lower()
-        
-        # Check context
-        name_mention = ""
-        for msg in history:
-            if "my name is " in msg.content.lower():
-                parts = msg.content.lower().split("my name is ")
-                if len(parts) > 1:
-                    extracted_name = parts[1].split()[0].replace(".", "").capitalize()
-                    name_mention = f" {extracted_name}"
+    async def stream_response(
+        self,
+        history: List[ChatMessage],
+        new_message: str,
+        system_instruction: Optional[str] = None,
+        **kwargs: Any
+    ) -> AsyncIterator[str]:
+        self._ensure_client()
+        contents = self._build_contents(history, new_message)
 
-        if "hello" in p_lower or "hi" in p_lower or "hey" in p_lower:
-            return f"Hello{name_mention}. I am **RUHI**, your personal AI system. I am here to understand your goals, retain active session context, and assist your workflow. What are you working on today?"
-        
-        if "what is ruhi" in p_lower or "who are you" in p_lower:
-            return (
-                "**RUHI** is an intelligent personal AI system designed to bridge the gap between human intent and digital execution.\n\n"
-                "Unlike traditional chatbots that simply respond to one-off prompts, RUHI combines:\n"
-                "- **Reasoning & Planning**: Deconstructing complex challenges into actionable logic.\n"
-                "- **Session & Personal Context**: Remembering what matters across your active session.\n"
-                "- **Tool Orchestration**: Coordinating with specialized tools and desktop environments.\n\n"
-                "In this web interface, you can explore reasoning and chat. When installed on your machine, RUHI gains secure, permissioned local execution capabilities."
-            )
-
-        if "plan" in p_lower:
-            return (
-                "Here is a structured framework to plan that goal:\n\n"
-                "1. **Core Objective Clarification**: Define the exact measurable outcome.\n"
-                "2. **Resource & Context Mapping**: Identify required inputs, dependencies, and constraints.\n"
-                "3. **Milestone Breakdown**: Segment into 3 sequential phases.\n"
-                "4. **Execution & Feedback Loop**: Continuous review with RUHI.\n\n"
-                "Would you like me to tailor this for a specific technical or personal project?"
-            )
-
-        return (
-            f"I understand your query: *\"{prompt}\"*.\n\n"
-            f"As your personal AI system, I am maintaining our conversation context (currently {len(history) + 1} turns in this session). "
-            "How would you like to proceed or deepen this exploration?"
+        config = types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            temperature=kwargs.get("temperature", 0.7),
+            top_p=kwargs.get("top_p", 0.95),
         )
+
+        def _get_stream(model_name: str):
+            assert self._client is not None
+            return self._client.models.generate_content_stream(
+                model=model_name,
+                contents=cast(Any, contents),
+                config=config
+            )
+
+        queue: asyncio.Queue[Optional[str]] = asyncio.Queue()
+        error_container: list[Exception] = []
+
+        def _worker():
+            try:
+                stream = _get_stream(self.model)
+                for chunk in stream:
+                    if chunk.text:
+                        queue.put_nowait(chunk.text)
+            except Exception as err:
+                logger.warning(f"Streaming failed on primary model {self.model}: {err}. Retrying on fallback {self.fallback_model}...")
+                try:
+                    stream = _get_stream(self.fallback_model)
+                    for chunk in stream:
+                        if chunk.text:
+                            queue.put_nowait(chunk.text)
+                except Exception as fb_err:
+                    logger.error(f"Streaming fallback failed: {fb_err}")
+                    error_container.append(fb_err)
+            finally:
+                queue.put_nowait(None)
+
+        loop = asyncio.get_running_loop()
+        loop.run_in_executor(None, _worker)
+
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            yield item
+
+        if error_container:
+            raise RuntimeError(f"Streaming generation error: {str(error_container[0])}")

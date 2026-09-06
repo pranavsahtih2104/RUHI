@@ -1,149 +1,317 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Send, Sparkles, Trash2, Copy, Check, Terminal, AlertCircle, ArrowUpRight, Cpu, Mic, MicOff, Volume2 
+  Send, Sparkles, Trash2, Copy, Check, AlertCircle, ArrowUpRight, Cpu, 
+  Mic, MicOff, RefreshCw, RotateCcw, MessageSquare, Brain, History, ChevronLeft, ChevronRight, ShieldCheck
 } from 'lucide-react';
-import { sendChatMessage, clearSessionContext, checkBackendHealth } from '../services/api';
+import { 
+  sendChatMessage, 
+  sendStreamingChatMessage, 
+  clearSessionContext, 
+  checkBackendHealth,
+  fetchConversations,
+  createConversation,
+  fetchConversationDetail,
+  renameConversation,
+  deleteConversation,
+  fetchMemories,
+} from '../services/api';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import VoiceStatusBanner from './VoiceStatusBanner';
+import ChatSidebar from './ChatSidebar';
+import MemoryModal from './MemoryModal';
 
 export default function TryRuhiChat() {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isThinking, setIsThinking] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [speechSupported, setSpeechSupported] = useState(false);
-  const [sessionId, setSessionId] = useState('');
-  const [backendStatus, setBackendStatus] = useState({ online: true, model: 'gemini-2.5-flash' });
+  const [streamingContent, setStreamingContent] = useState('');
+  const [activeConversationId, setActiveConversationId] = useState('');
+  const [conversations, setConversations] = useState([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMemoryModalOpen, setIsMemoryModalOpen] = useState(false);
+  const [memoryCount, setMemoryCount] = useState(0);
+  const [backendHealth, setBackendHealth] = useState({ online: false, configured: false, database_connected: false });
   const [errorMessage, setErrorMessage] = useState(null);
   const [copiedIndex, setCopiedIndex] = useState(null);
+  const [latestMemoryEvent, setLatestMemoryEvent] = useState(null);
 
-  const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
-  const recognitionRef = useRef(null);
+  const isInitialMountRef = useRef(true);
 
-  // Initialize Speech Recognition & Session ID
+  // Hook up robust speech recognition
+  const handleFinalVoiceTranscript = (finalText) => {
+    setInputMessage((prev) => {
+      const trimmed = prev.trim();
+      return trimmed ? `${trimmed} ${finalText}` : finalText;
+    });
+    inputRef.current?.focus();
+  };
+
+  const handleInterimVoiceTranscript = (interimText) => {
+    // Interim transcript updates
+  };
+
+  const {
+    voiceState,
+    isListening,
+    errorMessage: voiceError,
+    interimTranscript,
+    startListening,
+    stopListening,
+    resetVoiceState,
+  } = useSpeechRecognition({
+    onTranscript: handleInterimVoiceTranscript,
+    onFinalTranscript: handleFinalVoiceTranscript,
+  });
+
+  // Load conversations & memory count on mount
+  const refreshConversations = async () => {
+    try {
+      const list = await fetchConversations();
+      setConversations(list || []);
+      return list;
+    } catch (err) {
+      console.error('Failed to load conversations:', err);
+      return [];
+    }
+  };
+
+  const refreshMemoryCount = async () => {
+    try {
+      const res = await fetchMemories({ active: true, limit: 1 });
+      setMemoryCount(res.total || 0);
+    } catch (err) {
+      console.error('Failed to load memory count:', err);
+    }
+  };
+
   useEffect(() => {
-    let existingSession = sessionStorage.getItem('ruhi_session_id');
-    if (!existingSession) {
-      existingSession = 'ruhi_sess_' + Math.random().toString(36).substring(2, 11);
-      sessionStorage.setItem('ruhi_session_id', existingSession);
-    }
-    setSessionId(existingSession);
+    const initSessionAndData = async () => {
+      const list = await refreshConversations();
+      await refreshMemoryCount();
 
-    // Setup Web Speech API if supported
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      setSpeechSupported(true);
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
+      let savedId = sessionStorage.getItem('ruhi_active_conv_id');
+      if (savedId && list.some(c => c.id === savedId)) {
+        await handleSelectConversation(savedId);
+      } else if (list.length > 0) {
+        await handleSelectConversation(list[0].id);
+      } else {
+        // Create initial persistent conversation
+        try {
+          const newConv = await createConversation("New Conversation");
+          setActiveConversationId(newConv.id);
+          sessionStorage.setItem('ruhi_active_conv_id', newConv.id);
+          setConversations([newConv]);
+        } catch (e) {
+          const fallbackId = 'conv_' + Math.random().toString(36).substring(2, 10);
+          setActiveConversationId(fallbackId);
+        }
+      }
+    };
 
-      recognition.onresult = (event) => {
-        const transcript = Array.from(event.results)
-          .map((result) => result[0])
-          .map((result) => result.transcript)
-          .join('');
-        setInputMessage(transcript);
-      };
+    initSessionAndData();
 
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognition.onerror = (event) => {
-        console.warn('Speech recognition status:', event.error);
-        setIsListening(false);
-      };
-
-      recognitionRef.current = recognition;
-    }
-
-    // Check backend health
-    checkBackendHealth()
-      .then((res) => {
-        setBackendStatus({
-          online: res.status === 'healthy',
-          model: res.model || 'gemini-2.5-flash',
-          provider: res.llm_provider || 'Google Gemini',
+    // Initial and periodic backend health check
+    const performHealthCheck = () => {
+      checkBackendHealth()
+        .then((res) => {
+          setBackendHealth({
+            online: res.status === 'healthy' || res.status === 'degraded',
+            configured: res.configured_api_key,
+            database_connected: res.database_connected,
+          });
+        })
+        .catch(() => {
+          setBackendHealth({ online: false, configured: false, database_connected: false });
         });
-      })
-      .catch(() => {
-        setBackendStatus({ online: false, model: 'offline_fallback' });
-      });
+    };
+
+    performHealthCheck();
+    const intervalId = setInterval(performHealthCheck, 30000);
+    return () => clearInterval(intervalId);
   }, []);
 
-  // Auto-scroll to bottom of messages
+  // Auto-scroll to bottom of messages inside chat container during active conversation
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isThinking]);
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+
+    if (messages.length > 0 || streamingContent || isThinking) {
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTo({
+          top: messagesContainerRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    }
+  }, [messages, streamingContent, isThinking]);
+
+  const handleSelectConversation = async (convId) => {
+    setActiveConversationId(convId);
+    sessionStorage.setItem('ruhi_active_conv_id', convId);
+    setStreamingContent('');
+    setErrorMessage(null);
+    setLatestMemoryEvent(null);
+
+    try {
+      const detail = await fetchConversationDetail(convId);
+      if (detail && detail.messages) {
+        setMessages(detail.messages);
+      } else {
+        setMessages([]);
+      }
+    } catch (err) {
+      console.error(`Failed to load messages for ${convId}:`, err);
+      setMessages([]);
+    }
+  };
+
+  const handleNewConversation = async () => {
+    try {
+      const newConv = await createConversation("New Conversation");
+      setConversations(prev => [newConv, ...prev]);
+      setActiveConversationId(newConv.id);
+      sessionStorage.setItem('ruhi_active_conv_id', newConv.id);
+      setMessages([]);
+      setStreamingContent('');
+      setErrorMessage(null);
+      setLatestMemoryEvent(null);
+    } catch (err) {
+      console.error('Failed to create new conversation:', err);
+    }
+  };
+
+  const handleRenameConversation = async (convId, newTitle) => {
+    try {
+      await renameConversation(convId, newTitle);
+      setConversations(prev => prev.map(c => c.id === convId ? { ...c, title: newTitle } : c));
+    } catch (err) {
+      console.error('Failed to rename conversation:', err);
+    }
+  };
+
+  const handleDeleteConversation = async (convId) => {
+    try {
+      await deleteConversation(convId);
+      const remaining = conversations.filter(c => c.id !== convId);
+      setConversations(remaining);
+
+      if (activeConversationId === convId) {
+        if (remaining.length > 0) {
+          await handleSelectConversation(remaining[0].id);
+        } else {
+          await handleNewConversation();
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete conversation:', err);
+    }
+  };
 
   const suggestions = [
-    { title: 'Explain something I\'m learning', query: 'Can you explain the core difference between monolithic AI models and personal AI systems in clear conceptual terms?' },
-    { title: 'Help me plan my day', query: 'I have 3 high-priority engineering tasks and 2 meetings. Help me structure an optimal focus workflow for today.' },
-    { title: 'Analyze this idea', query: 'Analyze the trade-offs of storing personal AI memories locally on-device versus encrypted in cloud vector stores.' },
-    { title: 'Help me solve a problem', query: 'I need to design a clean Python abstraction that can swap between Gemini, Claude, and local Ollama models. Show me an example architecture.' },
-    { title: 'Teach me something new', query: 'Teach me how autonomous AI agents maintain state and decide when to call external tools.' },
+    { title: 'Test Persistent Memory', query: 'Remember that RUHI is my personal AI project.' },
+    { title: 'Ask Recalled Context', query: 'What is RUHI?' },
+    { title: 'Explain System Architecture', query: 'Explain the difference between short-term chat context and persistent PostgreSQL memory.' },
+    { title: 'Plan Focus Workflow', query: 'I have 3 critical engineering tasks today. Help me structure an optimal focus workflow.' },
   ];
 
   const toggleVoiceInput = () => {
-    if (!speechSupported) {
-      const samplePrompts = [
-        "Explain the difference between context and memory in personal AI.",
-        "How does RUHI execute guarded desktop workflows?",
-        "Help me structure a productive daily engineering workflow."
-      ];
-      const randomPrompt = samplePrompts[Math.floor(Math.random() * samplePrompts.length)];
-      setInputMessage(randomPrompt);
-      return;
-    }
     if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
+      stopListening();
     } else {
-      try {
-        recognitionRef.current?.start();
-        setIsListening(true);
-      } catch (err) {
-        console.warn('Voice input start error:', err);
-        setIsListening(false);
-      }
+      startListening();
     }
   };
 
   const handleSendMessage = async (textToSend) => {
     if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
+      stopListening();
     }
 
     const text = (textToSend || inputMessage).trim();
     if (!text || isThinking) return;
 
     setErrorMessage(null);
+    setLatestMemoryEvent(null);
     const userMsg = { role: 'user', content: text, timestamp: new Date().toISOString() };
     setMessages((prev) => [...prev, userMsg]);
     setInputMessage('');
     setIsThinking(true);
+    setStreamingContent('');
 
-    try {
-      const response = await sendChatMessage(text, sessionId);
-      const assistantMsg = {
-        role: 'assistant',
-        content: response.message,
-        timestamp: response.timestamp || new Date().toISOString(),
-        model: response.model,
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
-    } catch (err) {
-      setErrorMessage(err.message || 'Failed to communicate with RUHI backend.');
-      const fallbackMsg = {
-        role: 'assistant',
-        content: `I encountered a communication issue (${err.message || 'Network error'}). Please check backend connection.`,
-        timestamp: new Date().toISOString(),
-        isError: true,
-      };
-      setMessages((prev) => [...prev, fallbackMsg]);
-    } finally {
-      setIsThinking(false);
+    let accumulated = '';
+
+    await sendStreamingChatMessage({
+      message: text,
+      sessionId: activeConversationId,
+      onStart: () => {
+        setIsThinking(true);
+      },
+      onToken: (token) => {
+        accumulated += token;
+        setStreamingContent(accumulated);
+      },
+      onDone: () => {
+        if (accumulated) {
+          const assistantMsg = {
+            role: 'assistant',
+            content: accumulated,
+            timestamp: new Date().toISOString(),
+          };
+          setMessages((prev) => [...prev, assistantMsg]);
+        }
+        setStreamingContent('');
+        setIsThinking(false);
+        refreshConversations();
+        refreshMemoryCount();
+      },
+      onError: (err) => {
+        console.warn('Streaming failed, falling back to standard request:', err);
+        // Fallback to standard request
+        sendChatMessage(text, activeConversationId)
+          .then((res) => {
+            const assistantMsg = {
+              role: 'assistant',
+              content: res.message,
+              timestamp: res.timestamp || new Date().toISOString(),
+            };
+            setMessages((prev) => [...prev, assistantMsg]);
+            if (res.memory_events && res.memory_events.length > 0) {
+              setLatestMemoryEvent(res.memory_events[0]);
+            }
+          })
+          .catch((fallbackErr) => {
+            const displayError = fallbackErr.message || err.message || 'Failed to communicate with RUHI Core.';
+            setErrorMessage(displayError);
+            const errorMsg = {
+              role: 'assistant',
+              content: `RUHI encountered a communication issue: ${displayError}`,
+              timestamp: new Date().toISOString(),
+              isError: true,
+            };
+            setMessages((prev) => [...prev, errorMsg]);
+          })
+          .finally(() => {
+            setStreamingContent('');
+            setIsThinking(false);
+            refreshConversations();
+            refreshMemoryCount();
+          });
+      },
+    });
+  };
+
+  const handleRetryLastMessage = () => {
+    if (messages.length === 0) return;
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+    if (lastUserMsg) {
+      if (messages[messages.length - 1]?.isError) {
+        setMessages(prev => prev.slice(0, -1));
+      }
+      handleSendMessage(lastUserMsg.content);
     }
   };
 
@@ -157,17 +325,19 @@ export default function TryRuhiChat() {
   const handleClearContext = async () => {
     if (messages.length === 0) return;
     try {
-      await clearSessionContext(sessionId);
+      await clearSessionContext(activeConversationId);
       setMessages([]);
+      setStreamingContent('');
       setErrorMessage(null);
+      await refreshConversations();
     } catch (err) {
       console.error('Failed to reset session on server:', err);
       setMessages([]);
     }
   };
 
-  const copyToClipboard = (code, idx) => {
-    navigator.clipboard.writeText(code);
+  const copyToClipboard = (text, idx) => {
+    navigator.clipboard.writeText(text);
     setCopiedIndex(idx);
     setTimeout(() => setCopiedIndex(null), 2000);
   };
@@ -181,7 +351,6 @@ export default function TryRuhiChat() {
     let snippetId = 0;
 
     while ((match = codeBlockRegex.exec(content)) !== null) {
-      // Text before code block
       if (match.index > lastIndex) {
         parts.push({
           type: 'text',
@@ -189,7 +358,6 @@ export default function TryRuhiChat() {
         });
       }
 
-      // Code block
       parts.push({
         type: 'code',
         language: match[1] || 'plaintext',
@@ -200,7 +368,6 @@ export default function TryRuhiChat() {
       lastIndex = match.index + match[0].length;
     }
 
-    // Remaining text
     if (lastIndex < content.length) {
       parts.push({
         type: 'text',
@@ -263,7 +430,6 @@ export default function TryRuhiChat() {
               );
             }
 
-            // Regular paragraph with bold replacement
             const formattedPara = para.split(/(\*\*.*?\*\*)/g).map((chunk, cIdx) => {
               if (chunk.startsWith('**') && chunk.endsWith('**')) {
                 return <strong key={cIdx}>{chunk.slice(2, -2)}</strong>;
@@ -278,17 +444,19 @@ export default function TryRuhiChat() {
     );
   };
 
+  const isOnline = backendHealth.online;
+
   return (
     <section className="ruhi-section" id="try-ruhi">
       <div className="ruhi-container">
         <div className="section-header">
           <div className="section-badge">
             <Sparkles size={13} />
-            <span>LIVE INTERACTIVE AI DEMO</span>
+            <span>RUHI STAGE 2 // PERSISTENT MEMORY & POSTGRESQL</span>
           </div>
           <h2 className="section-title">Try RUHI</h2>
           <p className="section-description">
-            Experience RUHI's personal reasoning engine live. Maintain multi-turn context, test complex tasks, and witness calm, structured personal AI intelligence.
+            Experience RUHI's personal reasoning engine backed by persistent PostgreSQL memory. Tell RUHI facts or preferences to remember across sessions, and explore multi-turn context retention.
           </p>
         </div>
 
@@ -301,18 +469,38 @@ export default function TryRuhiChat() {
                 <img src="/ruhi-icon.svg" alt="RUHI Core" />
               </div>
               <div className="console-title-wrap">
-                <span className="console-title">RUHI Personal AI</span>
+                <span className="console-title">RUHI Core</span>
                 <span className="console-status-text">
-                  <span className="console-status-dot" />
-                  {isThinking ? 'RUHI is thinking...' : `Connected // ${backendStatus.model}`}
+                  <span className={`console-status-dot ${isOnline ? 'online' : 'offline'}`} />
+                  {isOnline ? 'RUHI Online' : 'RUHI Offline (Backend disconnected)'}
                 </span>
               </div>
             </div>
 
             <div className="console-actions-group">
+              {/* History Sidebar Toggle */}
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className={`btn-console-tool ${isSidebarOpen ? 'active' : ''}`}
+                title="Toggle Conversation History Sidebar"
+              >
+                <History size={13} />
+                <span>History ({conversations.length})</span>
+              </button>
+
+              {/* Memory Modal Trigger */}
+              <button
+                onClick={() => setIsMemoryModalOpen(true)}
+                className="btn-console-tool memory-btn"
+                title="View & Manage Persistent Long-Term Memories"
+              >
+                <Brain size={13} />
+                <span>Memory ({memoryCount})</span>
+              </button>
+
               <div className="context-counter-pill">
                 <Cpu size={12} color="var(--cyan-primary)" />
-                <span>Session Turns: {messages.length}</span>
+                <span>Turns: {messages.length}</span>
               </div>
 
               {messages.length > 0 && (
@@ -320,113 +508,192 @@ export default function TryRuhiChat() {
                   onClick={handleClearContext}
                   className="btn-console-clear"
                   aria-label="Clear active conversation session context"
+                  title="Clear messages for this conversation"
                 >
                   <Trash2 size={13} />
-                  <span>Reset Context</span>
+                  <span>Reset</span>
                 </button>
               )}
             </div>
           </div>
 
-          {/* Conversation Area */}
-          <div className="chat-messages-container">
-            {messages.length === 0 ? (
-              <div className="chat-welcome-state">
-                <img src="/ruhi-icon.svg" alt="RUHI Glyph" className="welcome-glyph" />
-                <h3 className="welcome-heading">How can RUHI assist your workflow?</h3>
-                <p className="welcome-desc">
-                  Start a conversation below or pick a structured exploration scenario to observe RUHI's reasoning and session memory in action.
-                </p>
+          {/* Body Layout: Sidebar + Main Chat Viewport */}
+          <div className="chat-body-layout">
+            {/* Conversation History Sidebar */}
+            <ChatSidebar
+              isOpen={isSidebarOpen}
+              onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+              conversations={conversations}
+              activeConversationId={activeConversationId}
+              onSelectConversation={handleSelectConversation}
+              onNewConversation={handleNewConversation}
+              onRenameConversation={handleRenameConversation}
+              onDeleteConversation={handleDeleteConversation}
+            />
 
-                <div className="suggestions-deck">
-                  {suggestions.map((s, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleSendMessage(s.query)}
-                      className="suggestion-chip-btn"
+            {/* Main Chat Viewport */}
+            <div className="chat-viewport">
+              {/* Conversation Area */}
+              <div ref={messagesContainerRef} className="chat-messages-container">
+                {messages.length === 0 && !streamingContent ? (
+                  <div className="chat-welcome-state">
+                    <img src="/ruhi-icon.svg" alt="RUHI Glyph" className="welcome-glyph" />
+                    <h3 className="welcome-heading">How may RUHI assist you today?</h3>
+                    <p className="welcome-desc">
+                      Say <em>"Remember that..."</em> to store persistent context, ask questions, or pick a scenario below to explore multi-turn reasoning and persistent memory.
+                    </p>
+
+                    <div className="suggestions-deck">
+                      {suggestions.map((s, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handleSendMessage(s.query)}
+                          className="suggestion-chip-btn"
+                        >
+                          <span>"{s.title}"</span>
+                          <ArrowUpRight size={14} color="var(--cyan-primary)" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  messages.map((msg, idx) => (
+                    <div key={idx} className={`message-row ${msg.role === 'user' ? 'user' : 'ruhi'}`}>
+                      <div className="message-avatar">
+                        {msg.role === 'user' ? 'YOU' : <Sparkles size={16} />}
+                      </div>
+                      <div className="message-content-box">
+                        {renderMessageContent(msg.content)}
+                        {msg.role === 'assistant' && !msg.isError && (
+                          <div className="message-toolbar">
+                            <button
+                              onClick={() => copyToClipboard(msg.content, `msg_${idx}`)}
+                              className="btn-message-tool"
+                              aria-label="Copy response"
+                            >
+                              {copiedIndex === `msg_${idx}` ? (
+                                <>
+                                  <Check size={12} color="#34d399" />
+                                  <span style={{ color: '#34d399' }}>Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy size={12} />
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+
+                {/* Live Streaming Token Box */}
+                {streamingContent && (
+                  <div className="message-row ruhi">
+                    <div className="message-avatar">
+                      <Sparkles size={16} />
+                    </div>
+                    <div className="message-content-box">
+                      {renderMessageContent(streamingContent)}
+                      <span className="streaming-cursor" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Calm Thinking State */}
+                {isThinking && !streamingContent && (
+                  <div className="ruhi-thinking-indicator">
+                    <div className="thinking-waves">
+                      <div className="wave-bar" />
+                      <div className="wave-bar" />
+                      <div className="wave-bar" />
+                    </div>
+                    <span>RUHI is reasoning through your request...</span>
+                  </div>
+                )}
+
+                {/* Error & Retry Bar */}
+                {errorMessage && (
+                  <div className="chat-error-banner">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AlertCircle size={15} color="#f87171" />
+                      <span>{errorMessage}</span>
+                    </div>
+                    <button 
+                      onClick={handleRetryLastMessage}
+                      className="btn-retry"
                     >
-                      <span>"{s.title}"</span>
-                      <ArrowUpRight size={14} color="var(--cyan-primary)" />
+                      <RotateCcw size={13} />
+                      <span>Retry</span>
                     </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              messages.map((msg, idx) => (
-                <div key={idx} className={`message-row ${msg.role === 'user' ? 'user' : 'ruhi'}`}>
-                  <div className="message-avatar">
-                    {msg.role === 'user' ? 'YOU' : <Sparkles size={16} />}
                   </div>
-                  <div className="message-content-box">
-                    {renderMessageContent(msg.content)}
-                  </div>
-                </div>
-              ))
-            )}
-
-            {/* Calm Thinking State */}
-            {isThinking && (
-              <div className="ruhi-thinking-indicator">
-                <div className="thinking-waves">
-                  <div className="wave-bar" />
-                  <div className="wave-bar" />
-                  <div className="wave-bar" />
-                </div>
-                <span>RUHI is reasoning through your request...</span>
+                )}
               </div>
-            )}
 
-            <div ref={messagesEndRef} />
-          </div>
+              {/* Composer */}
+              <div className="chat-composer-area">
+                {/* Voice Status Indicator Banner */}
+                <VoiceStatusBanner 
+                  voiceState={voiceState}
+                  errorMessage={voiceError}
+                  interimTranscript={interimTranscript}
+                  onDismiss={resetVoiceState}
+                  onRetry={startListening}
+                />
 
-          {/* Composer */}
-          <div className="chat-composer-area">
-            {isListening && (
-              <div className="voice-listening-banner">
-                <span className="voice-pulse-circle" />
-                <span>RUHI is listening to your speech... Speak clearly.</span>
+                <form className="composer-form" onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={isListening ? 'Listening to your speech...' : 'Talk to RUHI (type or dictate with mic)...'}
+                    className={`composer-input ${isListening ? 'active-listening' : ''}`}
+                    disabled={isThinking}
+                    aria-label="Input prompt for RUHI"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={toggleVoiceInput}
+                    className={`btn-composer-voice ${isListening ? 'listening' : ''}`}
+                    title={isListening ? 'Stop listening' : 'Start voice input (speech-to-text)'}
+                    aria-label="Voice input toggle"
+                  >
+                    {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={!inputMessage.trim() || isThinking}
+                    className="btn-composer-send"
+                    aria-label="Send message to RUHI"
+                  >
+                    <Send size={16} />
+                  </button>
+                </form>
+
+                <div className="composer-hint">
+                  Press Enter to send • Shift + Enter for newline • 🎙️ Voice-to-text active • 🧠 Stored in PostgreSQL (<code>ruhi-web</code>)
+                </div>
               </div>
-            )}
-
-            <form className="composer-form" onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}>
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={isListening ? 'Listening to speech...' : 'Talk to RUHI...'}
-                className="composer-input"
-                disabled={isThinking}
-                aria-label="Input prompt for RUHI"
-              />
-
-              <button
-                type="button"
-                onClick={toggleVoiceInput}
-                className={`btn-composer-voice ${isListening ? 'listening' : ''}`}
-                title={speechSupported ? (isListening ? 'Stop listening' : 'Start voice input') : 'Simulate voice speech prompt'}
-                aria-label="Voice input toggle"
-              >
-                {isListening ? <MicOff size={16} /> : <Mic size={16} />}
-              </button>
-
-              <button
-                type="submit"
-                disabled={!inputMessage.trim() || isThinking}
-                className="btn-composer-send"
-                aria-label="Send message to RUHI"
-              >
-                <Send size={16} />
-              </button>
-            </form>
-
-            <div className="composer-hint">
-              Press Enter to send • Shift + Enter for newline • Voice input enabled
             </div>
           </div>
         </div>
       </div>
+
+      {/* Memory Management Modal */}
+      <MemoryModal
+        isOpen={isMemoryModalOpen}
+        onClose={() => {
+          setIsMemoryModalOpen(false);
+          refreshMemoryCount();
+        }}
+      />
     </section>
   );
 }

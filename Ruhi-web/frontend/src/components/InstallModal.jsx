@@ -1,26 +1,10 @@
 import React, { useState } from 'react';
-import { X, Download, ShieldCheck, Apple, Monitor, Terminal, CheckCircle2, Folder, Mic, Cpu } from 'lucide-react';
+import { X, ShieldCheck, Apple, Monitor, Terminal, CheckCircle2, Folder, Mic, Cpu, Clock, Layers, Sparkles } from 'lucide-react';
 
 export default function InstallModal({ isOpen, onClose }) {
   const [selectedOS, setSelectedOS] = useState('mac');
-  const [permissions, setPermissions] = useState({
-    files: true,
-    apps: true,
-    mic: false,
-    automation: true,
-  });
-  const [downloadStarted, setDownloadStarted] = useState(false);
 
   if (!isOpen) return null;
-
-  const togglePerm = (key) => {
-    setPermissions(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const handleDownload = () => {
-    setDownloadStarted(true);
-    setTimeout(() => setDownloadStarted(false), 4000);
-  };
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -28,7 +12,7 @@ export default function InstallModal({ isOpen, onClose }) {
         <button 
           className="modal-close-btn" 
           onClick={onClose}
-          aria-label="Close Install Modal"
+          aria-label="Close Modal"
         >
           <X size={20} />
         </button>
@@ -36,19 +20,19 @@ export default function InstallModal({ isOpen, onClose }) {
         {/* Modal Header */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <div className="hero-badge" style={{ marginBottom: '12px' }}>
-            <ShieldCheck size={14} />
-            <span>DESKTOP RUNTIME // EARLY ACCESS</span>
+            <Clock size={14} />
+            <span>RUHI DESKTOP // COMING SOON</span>
           </div>
-          <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '8px' }}>
-            Install RUHI on Your Machine
+          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '8px' }}>
+            RUHI Desktop Application
           </h2>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-            Unlock local file access, application orchestration, and background workflows with explicit permission control.
+          <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', maxWidth: '440px', margin: '0 auto' }}>
+            The native desktop application will bring RUHI Core directly to your computer, enabling permission-guarded filesystem access and local workflows.
           </p>
         </div>
 
-        {/* OS Selector */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '24px' }}>
+        {/* OS Platform Target */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '20px' }}>
           <button
             onClick={() => setSelectedOS('mac')}
             className={`filter-pill ${selectedOS === 'mac' ? 'active' : ''}`}
@@ -75,96 +59,46 @@ export default function InstallModal({ isOpen, onClose }) {
           </button>
         </div>
 
-        {/* Permission Setup Preview */}
-        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: '20px', marginBottom: '24px' }}>
-          <h4 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '4px', color: 'var(--text-pure)' }}>
-            Initial Permission Preferences
+        {/* Architecture Specs */}
+        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: '20px', marginBottom: '20px' }}>
+          <h4 style={{ fontSize: '0.92rem', fontWeight: 700, marginBottom: '8px', color: 'var(--text-pure)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ShieldCheck size={16} color="#34d399" />
+            <span>Desktop Architecture & Security Model</span>
           </h4>
-          <p style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', marginBottom: '16px' }}>
-            Choose which capabilities RUHI may request when installed:
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.84rem' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Folder size={14} color="var(--cyan-primary)" />
-                <span>Local Files & Workspaces</span>
-              </span>
-              <button 
-                onClick={() => togglePerm('files')}
-                className={`perm-toggle-btn ${permissions.files ? 'allowed' : 'blocked'}`}
-                style={{ padding: '4px 10px', fontSize: '0.7rem' }}
-              >
-                {permissions.files ? 'Allowed' : 'Don\'t Allow'}
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.84rem' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Terminal size={14} color="var(--cyan-primary)" />
-                <span>Application Execution</span>
-              </span>
-              <button 
-                onClick={() => togglePerm('apps')}
-                className={`perm-toggle-btn ${permissions.apps ? 'allowed' : 'blocked'}`}
-                style={{ padding: '4px 10px', fontSize: '0.7rem' }}
-              >
-                {permissions.apps ? 'Allowed' : 'Don\'t Allow'}
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.84rem' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Mic size={14} color="var(--cyan-primary)" />
-                <span>Microphone & Voice</span>
-              </span>
-              <button 
-                onClick={() => togglePerm('mic')}
-                className={`perm-toggle-btn ${permissions.mic ? 'allowed' : 'blocked'}`}
-                style={{ padding: '4px 10px', fontSize: '0.7rem' }}
-              >
-                {permissions.mic ? 'Allowed' : 'Don\'t Allow'}
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.84rem' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Cpu size={14} color="var(--cyan-primary)" />
-                <span>Background Automation</span>
-              </span>
-              <button 
-                onClick={() => togglePerm('automation')}
-                className={`perm-toggle-btn ${permissions.automation ? 'allowed' : 'blocked'}`}
-                style={{ padding: '4px 10px', fontSize: '0.7rem' }}
-              >
-                {permissions.automation ? 'Allowed' : 'Don\'t Allow'}
-              </button>
-            </div>
-          </div>
+          
+          <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+            <li style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <CheckCircle2 size={14} color="var(--cyan-primary)" style={{ marginTop: '2px', flexShrink: 0 }} />
+              <span><strong>Shared RUHI Core:</strong> Seamlessly reuses the same intelligence, context, and memory layer present in RUHI Web.</span>
+            </li>
+            <li style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <CheckCircle2 size={14} color="var(--cyan-primary)" style={{ marginTop: '2px', flexShrink: 0 }} />
+              <span><strong>Explicit Permission Engine:</strong> No unprompted filesystem reads, writes, or process executions. Every action is gated by transparent user consent.</span>
+            </li>
+            <li style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <CheckCircle2 size={14} color="var(--cyan-primary)" style={{ marginTop: '2px', flexShrink: 0 }} />
+              <span><strong>Local Vector Store:</strong> On-device document search and persistent memory without cloud data lock-in.</span>
+            </li>
+          </ul>
         </div>
 
-        {/* Action Button */}
-        <button 
-          onClick={handleDownload}
-          className="btn-primary" 
-          style={{ width: '100%', padding: '14px', fontSize: '1rem' }}
-        >
-          {downloadStarted ? (
-            <>
-              <CheckCircle2 size={18} color="#040812" />
-              <span>Preparing RUHI Installer Package...</span>
-            </>
-          ) : (
-            <>
-              <Download size={18} />
-              <span>Download RUHI for {selectedOS === 'mac' ? 'macOS (Universal DMG)' : selectedOS === 'win' ? 'Windows (x64 EXE)' : 'Linux (AppImage)'}</span>
-            </>
-          )}
-        </button>
+        {/* Notification Status Info */}
+        <div style={{ background: 'rgba(0, 242, 254, 0.04)', border: '1px solid rgba(0, 242, 254, 0.2)', borderRadius: 'var(--radius-md)', padding: '14px', textAlign: 'center', marginBottom: '16px' }}>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+            ✨ RUHI Web v1 is live now in your browser.
+          </span>
+          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+            The native desktop installer builds will be made available as development progresses.
+          </p>
+        </div>
 
-        <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: '12px' }}>
-          SHA-256 Verified Build • Runs with explicit user sandbox sandboxing
-        </p>
+        <button 
+          onClick={onClose}
+          className="btn-primary" 
+          style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }}
+        >
+          <span>Continue Exploring RUHI Web</span>
+        </button>
       </div>
     </div>
   );
